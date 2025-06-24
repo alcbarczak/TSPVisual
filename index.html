@@ -31,6 +31,12 @@
 <body>
     <h2>TSP Viewer (Hamiltonian Path)</h2>
     <input type="file" id="tsp-upload" accept=".tsp" />
+    <label for="repo-file-select">Load TSP file from repository:</label>
+    <select id="repo-file-select">
+	<option value="">-- Select a file --</option>
+	<option value="tsp/berlin52.tsp">berlin52.tsp</option>
+	<option value="tsp/burma14.tsp">burma14.tsp</option>
+    </select>
     <button id="reset-button">Reset Path</button>
     <div>Cost: <span id="path-cost"></span></div>
     <div id="graph-container"></div>
@@ -223,6 +229,55 @@
             reader.readAsText(file);
         });
 
+	// handler to load directly from GitHub ( a tsp file located in the repository rather than local)
+		document.getElementById("repo-file-select").addEventListener("change", function () {
+			const filePath = this.value;
+			if (!filePath) return;
+
+			fetch(filePath)
+				.then(response => {
+					if (!response.ok) throw new Error("Failed to load file");
+					return response.text();
+				})
+				.then(data => {
+			const lines = data.split(/\r?\n/);
+					const coordStart = lines.findIndex(line => line.trim() === "NODE_COORD_SECTION");
+					if (coordStart === -1) return alert("NODE_COORD_SECTION not found");
+
+					nodes = [];
+					links = [];
+		
+					for (let i = coordStart + 1; i < lines.length; i++) {
+						const line = lines[i].trim();
+						if (line === "EOF" || line === "") break;
+						const [id, x, y] = line.split(/\s+/);
+						nodes.push({ id, x: +x, y: +y });
+					}
+
+					const minX = d3.min(nodes, d => d.x);
+					const maxX = d3.max(nodes, d => d.x);
+					const minY = d3.min(nodes, d => d.y);
+					const maxY = d3.max(nodes, d => d.y);
+					const scaleX = d3.scaleLinear().domain([minX, maxX]).range([padding, width - padding]);
+					const scaleY = d3.scaleLinear().domain([minY, maxY]).range([padding, height - padding]);
+					nodes.forEach(n => {
+						n.x = scaleX(n.x);
+						n.y = scaleY(n.y);
+					});
+
+					svg.selectAll("*").remove();
+					linkGroup = svg.append("g").attr("class", "links");
+					nodeGroup = svg.append("g").attr("class", "nodes");
+
+					selectedNodes = [];
+					updateGraph();
+					updatePathCost();
+				})
+				.catch(err => {
+					alert("Error loading file: " + err.message);
+				});
+		});
+	    
         d3.select("#reset-button").on("click", function () {
             links = [];
             selectedNodes = [];
