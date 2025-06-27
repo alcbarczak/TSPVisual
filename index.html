@@ -211,7 +211,8 @@
                 const minY = d3.min(nodes, d => d.y);
                 const maxY = d3.max(nodes, d => d.y);
                 const scaleX = d3.scaleLinear().domain([minX, maxX]).range([padding, width - padding]);
-                const scaleY = d3.scaleLinear().domain([minY, maxY]).range([padding, height - padding]);
+                //const scaleY = d3.scaleLinear().domain([minY, maxY]).range([padding, height - padding]);
+		const scaleY = d3.scaleLinear().domain([minY, maxY]).range([height - padding, padding]); // invert Y-axis
                 nodes.forEach(n => {
                     n.x = scaleX(n.x);
                     n.y = scaleY(n.y);
