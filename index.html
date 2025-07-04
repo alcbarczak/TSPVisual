@@ -26,19 +26,30 @@
             font-size: 12px;
             pointer-events: none;
         }
+		.labels text {
+			pointer-events: none;
+			font-size: 12px;
+			fill: darkred;
+			font-weight: bold;
+		}
     </style>
 </head>
 <body>
-    <h2>TSP Viewer (Hamiltonian Path)</h2>
+    <h2>TSP Viewer (Hamiltonian Cycle)</h2>
     <input type="file" id="tsp-upload" accept=".tsp" />
     <label for="repo-file-select">Load TSP file from repository:</label>
     <select id="repo-file-select">
 	<option value="">-- Select a file --</option>
 	<option value="tsp/berlin52.tsp">berlin52.tsp</option>
 	<option value="tsp/burma14.tsp">burma14.tsp</option>
-	<option value="tsp/QueenslandCities.tsp">QueenslandCities.tsp</option>
+	<option value="tsp/burma14.tsp">eil46.tsp</option>
+	<option value="tsp/burma14.tsp">QueenslandCities.tsp</option>
     </select>
     <button id="reset-button">Reset Path</button>
+	
+	<button id="toggle-labels-button">Toggle Edge Labels</button>
+	<!-- <div id="label-status" style="margin-top: 10px; color: gray;"></div> -->
+	
     <div>Cost: <span id="path-cost"></span></div>
     <div id="graph-container"></div>
 
@@ -52,6 +63,7 @@
         let nodes = [];
         let links = [];
         let selectedNodes = [];
+		let showLabels = true;
 
         const svg = d3.select("#graph-container")
             .append("svg")
@@ -60,9 +72,11 @@
 
         let linkGroup = svg.append("g").attr("class", "links");
         let nodeGroup = svg.append("g").attr("class", "nodes");
+		let labelGroup = svg.append("g").attr("class", "labels");
 
         function calculateDistance(n1, n2) {
-            return Math.sqrt((n1.x - n2.x) ** 2 + (n1.y - n2.y) ** 2);
+            //return Math.sqrt((n1.x - n2.x) ** 2 + (n1.y - n2.y) ** 2);
+			return Math.hypot(n1.origX - n2.origX, n1.origY - n2.origY);//original distances
         }
 
         function isHamiltonianCycle() {
@@ -127,6 +141,9 @@
 
 
         function updateGraph() {
+		
+			
+		
             const link = linkGroup
                 .selectAll("line")
                 .data(links, d => d.source + "-" + d.target);
@@ -148,7 +165,38 @@
                     updateGraph();
                     updatePathCost();
                 });
-
+			
+			// --- Update distance labels ---
+			labelGroup.selectAll("text").remove();
+			
+			if (showLabels) {
+			//}
+			
+				const labels = labelGroup.selectAll("text").data(links, d => d.source + "-" + d.target);
+				labels.exit().remove();
+				
+				labels.enter()
+					.append("text")
+					.attr("fill", "darkred")
+					.attr("font-size", "12px")
+					.merge(labels)
+					.attr("x", d => {
+						const s = nodes.find(n => n.id === d.source);
+						const t = nodes.find(n => n.id === d.target);
+						return (s.x + t.x) / 2;
+					})
+					.attr("y", d => {
+						const s = nodes.find(n => n.id === d.source);
+						const t = nodes.find(n => n.id === d.target);
+						return (s.y + t.y) / 2;
+					})
+					.text(d => {
+						const s = nodes.find(n => n.id === d.source);
+						const t = nodes.find(n => n.id === d.target);
+						return calculateDistance(s, t).toFixed(2);
+					});
+			}
+			
             const node = nodeGroup.selectAll("g").data(nodes, d => d.id);
 
             node.exit().remove();
@@ -186,6 +234,8 @@
                 .attr("text-anchor", "middle")
                 .attr("dy", "0.35em")
                 .text(d => d.id);
+				
+			//document.getElementById("label-status").textContent = `showLabels: ${showLabels}`;//DEBUG
         }
 
         document.getElementById("tsp-upload").addEventListener("change", function (e) {
@@ -204,24 +254,39 @@
                     const line = lines[i].trim();
                     if (line === "EOF" || line === "") break;
                     const [id, x, y] = line.split(/\s+/);
-                    nodes.push({ id, x: +x, y: +y });
+                    //nodes.push({ id, x: +x, y: +y });
+					nodes.push({ id, x: +x, y: +y, origX: +x, origY: +y });
                 }
 
                 const minX = d3.min(nodes, d => d.x);
                 const maxX = d3.max(nodes, d => d.x);
                 const minY = d3.min(nodes, d => d.y);
                 const maxY = d3.max(nodes, d => d.y);
-                const scaleX = d3.scaleLinear().domain([minX, maxX]).range([padding, width - padding]);
-                //const scaleY = d3.scaleLinear().domain([minY, maxY]).range([padding, height - padding]);
-		const scaleY = d3.scaleLinear().domain([minY, maxY]).range([height - padding, padding]); // invert Y-axis
-                nodes.forEach(n => {
-                    n.x = scaleX(n.x);
-                    n.y = scaleY(n.y);
-                });
+                //const scaleX = d3.scaleLinear().domain([minX, maxX]).range([padding, width - padding]);
+                ////const scaleY = d3.scaleLinear().domain([minY, maxY]).range([padding, height - padding]);
+				//const scaleY = d3.scaleLinear().domain([minY, maxY]).range([height - padding, padding]); // invert Y-axis
+                //nodes.forEach(n => {
+                //    n.x = scaleX(n.x);
+                //    n.y = scaleY(n.y);
+                //});
+				
+				const dx = maxX - minX;
+				const dy = maxY - minY;
+				const scale = Math.min((width - 2 * padding) / dx, (height - 2 * padding) / dy);
+				
+				const offsetX = (width - scale * dx) / 2;
+				const offsetY = (height - scale * dy) / 2;
+				
+				nodes.forEach(n => {
+					n.x = offsetX + (n.origX - minX) * scale;
+					n.y = height - (offsetY + (n.origY - minY) * scale); // invert Y
+				});
+				
 
                 svg.selectAll("*").remove();
                 linkGroup = svg.append("g").attr("class", "links");
                 nodeGroup = svg.append("g").attr("class", "nodes");
+				labelGroup = svg.append("g").attr("class", "labels");
 
                 selectedNodes = [];
                 updateGraph();
@@ -253,23 +318,38 @@
 						const line = lines[i].trim();
 						if (line === "EOF" || line === "") break;
 						const [id, x, y] = line.split(/\s+/);
-						nodes.push({ id, x: +x, y: +y });
+						//nodes.push({ id, x: +x, y: +y });
+						nodes.push({ id, x: +x, y: +y, origX: +x, origY: +y });
 					}
 
 					const minX = d3.min(nodes, d => d.x);
 					const maxX = d3.max(nodes, d => d.x);
 					const minY = d3.min(nodes, d => d.y);
 					const maxY = d3.max(nodes, d => d.y);
-					const scaleX = d3.scaleLinear().domain([minX, maxX]).range([padding, width - padding]);
-					const scaleY = d3.scaleLinear().domain([minY, maxY]).range([padding, height - padding]);
+					//const scaleX = d3.scaleLinear().domain([minX, maxX]).range([padding, width - padding]);
+					//const scaleY = d3.scaleLinear().domain([minY, maxY]).range([padding, height - padding]);
+					//const scaleY = d3.scaleLinear().domain([minY, maxY]).range([height - padding, padding]); // invert Y-axis
+					//nodes.forEach(n => {
+					//	n.x = scaleX(n.x);
+					//	n.y = scaleY(n.y);
+					//});
+					
+					const dx = maxX - minX;
+					const dy = maxY - minY;
+					const scale = Math.min((width - 2 * padding) / dx, (height - 2 * padding) / dy);
+					
+					const offsetX = (width - scale * dx) / 2;
+					const offsetY = (height - scale * dy) / 2;
+					
 					nodes.forEach(n => {
-						n.x = scaleX(n.x);
-						n.y = scaleY(n.y);
+						n.x = offsetX + (n.origX - minX) * scale;
+						n.y = height - (offsetY + (n.origY - minY) * scale); // invert Y
 					});
 
 					svg.selectAll("*").remove();
 					linkGroup = svg.append("g").attr("class", "links");
 					nodeGroup = svg.append("g").attr("class", "nodes");
+					labelGroup = svg.append("g").attr("class", "labels");
 
 					selectedNodes = [];
 					updateGraph();
@@ -287,6 +367,11 @@
             updateGraph();
             updatePathCost();
         });
+		document.getElementById("toggle-labels-button").addEventListener("click", function () {
+			showLabels = !showLabels;
+			this.textContent = showLabels ? "Hide Edge Labels" : "Show Edge Labels";
+			updateGraph();
+		});
     });
     </script>
 </body>
